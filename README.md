@@ -27,8 +27,14 @@ extension is built around that reality.
 - 🎯 **Target Max + "Put on page"** — record the most you'd pay for each lot, and
   one click pre-fills the site's Max Bid box with it (you review and click Bid
   yourself — the extension never submits a bid).
-- 💰 **eBay sold-comps** — one click opens completed/sold listings for the lot
-  title so you set your max with real resale data.
+- 💰 **Best-value finder** — sweeps every page of the auction and ranks lots by
+  **real discount off retail**: it reads the "Retail $…" embedded in each lot's
+  title and computes your **all-in cost including the 13% buyer's premium**, so
+  "which are worth bidding on" becomes a sorted list, not a guess.
+- 🛒 **eBay sold-comps** — one click opens completed/sold listings for the lot
+  title so you sanity-check value with real resale data.
+- 🔄 **Session keep-alive** — quietly pings the site so long monitoring sessions
+  don't get silently logged out mid-auction.
 
 It is **read-only** toward the auction: it watches the page and fills a field on
 request, but **you place every bid**. Nothing bids automatically.

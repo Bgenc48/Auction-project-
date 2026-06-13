@@ -23,6 +23,18 @@
   </section>
 
   <section class="card collapsible">
+    <div class="card-title row-between" id="valueToggle"><span>💰 Best-value finder</span><span class="chev">▾</span></div>
+    <div id="valueBody" class="hidden">
+      <div class="muted small">Sweeps every page of the open auction and ranks lots by discount off retail (all-in, incl. buyer's premium). Lots must list a "Retail $…" in the title.</div>
+      <div class="row">
+        <button id="scanAllBtn" class="primary">Scan whole auction</button>
+        <span id="scanStatus" class="muted small"></span>
+      </div>
+      <div id="valueResults"></div>
+    </div>
+  </section>
+
+  <section class="card collapsible">
     <div class="card-title row-between" id="pageToggle"><span>Add lots from this page</span><span class="chev">▾</span></div>
     <div id="pageBody" class="hidden">
       <div id="pageItems" class="muted small">Open the auction in a tab, then reopen this.</div>
@@ -37,6 +49,10 @@
       <div class="field">
         <label>"Closing soon" means within this many minutes</label>
         <input id="endingSoonLeadMin" type="number" min="1" max="240" value="10" />
+      </div>
+      <div class="field">
+        <label>Buyer's premium % (used in value math — rlspear is 13%)</label>
+        <input id="premiumPct" type="number" min="0" max="50" value="13" />
       </div>
       <div class="muted small">Alerts are desktop notifications — keep Chrome running and a rlspear tab open so they fire.</div>
     </div>

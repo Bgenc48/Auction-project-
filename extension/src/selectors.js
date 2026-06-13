@@ -126,26 +126,30 @@
     return m ? m[1] : null;
   }
 
-  // Scan the whole page and return an array of item snapshots.
-  function scanItems() {
+  // Scan a page (or a parsed document from GetAuctionItems) and return an
+  // array of item snapshots. `root` defaults to the live document.
+  function scanItems(root) {
+    root = root || document;
     const out = [];
     const seen = new Set();
-    const idInputs = Array.from(document.querySelectorAll('input[id^="AuctionItemId_"]'));
+    const idInputs = Array.from(root.querySelectorAll('input[id^="AuctionItemId_"]'));
 
     const handle = (card, itemId, index) => {
       if (!itemId || seen.has(itemId)) return;
       seen.add(itemId);
-      const maxField = index ? document.getElementById("MaxBidAmount_" + index) : null;
+      const maxField = index && root.getElementById ? root.getElementById("MaxBidAmount_" + index) : null;
       const t = timeFromCard(card);
+      const title = titleFromCard(card);
       out.push({
         id: String(itemId),
         index: index || null,
-        title: titleFromCard(card),
+        title,
         currentBid: currentBidFromCard(card),
         myMaxBid: maxField ? parseMoney(maxField.value) : null,
         status: statusFromCard(card),
         endMs: t.endMs,
         serverNowMs: t.serverNowMs,
+        value: parseTitleValue(title),
         capturedAt: Date.now(),
         url: bestUrlForCard(card)
       });
@@ -157,13 +161,41 @@
       }
     } else {
       // Fallback: enumerate by timer elements (each carries data-auctionitemid).
-      const timers = Array.from(document.querySelectorAll(".remain-time[data-auctionitemid], [data-auctionitemid][data-enddate]"));
+      const timers = Array.from(root.querySelectorAll(".remain-time[data-auctionitemid], [data-auctionitemid][data-enddate]"));
       for (const timer of timers) {
         const itemId = timer.getAttribute("data-auctionitemid");
         handle(findCard(timer), itemId, null);
       }
     }
     return out;
+  }
+
+  // ---- value engine -------------------------------------------------------
+  // The lot title is the richest signal — it usually embeds retail price,
+  // condition and quantity. Parse it so we can rank lots by real discount.
+  function parseTitleValue(title) {
+    if (!title) return {};
+    const retailM = title.match(/(?:retail|msrp|value|orig(?:inal)?(?:\s*price)?)\s*[:\-]?\s*\$\s*([\d,]+(?:\.\d{1,2})?)/i)
+      || title.match(/\$\s*([\d,]+(?:\.\d{1,2})?)\s*(?:retail|msrp|value)/i);
+    const condM = title.match(/\b(brand new|new in box|like new|open box|showroom sample|refurbished|gently used|used|new|damaged)\b/i);
+    const qtyM = title.match(/(?:qty[:\s]*|set of\s*|\(\s*|x\s*)?(\d+)\s*(?:each|ea\b|pcs|pieces|units|count|ct\b)/i);
+    return {
+      retail: retailM ? parseFloat(retailM[1].replace(/,/g, "")) : null,
+      condition: condM ? condM[1] : null,
+      qty: qtyM ? parseInt(qtyM[1], 10) : null
+    };
+  }
+
+  // All-in cost vs retail. premiumPct = buyer's premium (rlspear = 13%).
+  function valuation(currentBid, retail, premiumPct) {
+    if (retail == null || retail <= 0) return null;
+    const bid = currentBid != null ? currentBid : 0;
+    const allIn = bid * (1 + (premiumPct || 0) / 100);
+    return {
+      retail,
+      allIn: Math.round(allIn * 100) / 100,
+      discountPct: Math.round((1 - allIn / retail) * 100)
+    };
   }
 
   function bestUrlForCard(card) {
@@ -201,6 +233,8 @@
 
   window.RLSpearSelectors = {
     scanItems,
+    parseTitleValue,
+    valuation,
     auctionIdFromPage,
     parseMoney,
     buildSelector,

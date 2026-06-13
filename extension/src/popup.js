@@ -25,6 +25,16 @@ function statusPill(s) {
   if (s === "outbid") return `<span class="pill lose">Outbid</span>`;
   return `<span class="pill mode">no bid</span>`;
 }
+function premium() { return (state.settings && state.settings.premiumPct) || 0; }
+// Returns a value badge HTML for an item that carries a parsed `value` (retail).
+function valueBadge(currentBid, value) {
+  const retail = value && value.retail;
+  if (!retail) return "";
+  const v = window.RLSpearSelectors.valuation(currentBid, retail, premium());
+  if (!v) return "";
+  const cls = v.discountPct >= 60 ? "win" : v.discountPct >= 30 ? "" : "lose";
+  return `<span class="pill ${cls}" title="Retail $${retail} · all-in ~$${v.allIn} (incl. ${premium()}% premium)">${v.discountPct}% off</span>`;
+}
 function send(msg) { return new Promise((r) => chrome.runtime.sendMessage(msg, (x) => r(x))); }
 function tabSend(id, msg) {
   return new Promise((r) => chrome.tabs.sendMessage(id, msg, (x) => r(chrome.runtime.lastError ? null : x)));
@@ -36,6 +46,7 @@ async function refresh() {
   $("#outbidAlerts").checked = !!s.outbidAlerts;
   $("#endingSoonAlerts").checked = !!s.endingSoonAlerts;
   $("#endingSoonLeadMin").value = s.endingSoonLeadMin || 10;
+  $("#premiumPct").value = s.premiumPct != null ? s.premiumPct : 13;
   renderTracked();
 }
 
@@ -58,6 +69,7 @@ function renderTracked() {
         <span>max ${money(e.myMaxBid)}</span>
         <span>${timeLeft(e.endEpoch)}</span>
         ${statusPill(e.lastStatus)}
+        ${valueBadge(e.currentBid, e.value)}
         ${overMax ? `<span class="pill cap">past your target</span>` : ""}
       </div>
       <div class="meta">
@@ -112,6 +124,7 @@ async function loadPage() {
       <div class="meta">
         <span>now ${money(it.currentBid)}</span>
         ${statusPill(it.status)}
+        ${valueBadge(it.currentBid, it.value)}
         <a class="link track" href="#">${state.tracked[it.id] ? "Tracked ✓" : "Track"}</a>
       </div>
     </div>`).join("") + (pageItems.length > 60 ? `<div class="muted small">+${pageItems.length - 60} more — search/filter on the site to narrow them.</div>` : "");
@@ -127,9 +140,72 @@ async function loadPage() {
   });
 }
 
+// ---- best-value finder ----------------------------------------------------
+function renderValueResults(items) {
+  const root = $("#valueResults");
+  const ranked = items
+    .map((it) => ({ it, v: window.RLSpearSelectors.valuation(it.currentBid, it.value && it.value.retail, premium()) }))
+    .filter((x) => x.v)
+    .sort((a, b) => b.v.discountPct - a.v.discountPct)
+    .slice(0, 40);
+  if (!ranked.length) {
+    root.innerHTML = `<div class="muted small">No lots with a "Retail $…" in the title were found to rank.</div>`;
+    return;
+  }
+  root.innerHTML = ranked.map(({ it, v }) => `
+    <div class="pitem" data-id="${esc(it.id)}">
+      <div class="t" title="${esc(it.title)}">${esc(it.title || "(lot " + it.id + ")")}</div>
+      <div class="meta">
+        <span class="pill ${v.discountPct >= 60 ? "win" : v.discountPct >= 30 ? "mode" : "lose"}">${v.discountPct}% off</span>
+        <span>now ${money(it.currentBid)} → ~${money(v.allIn)} all-in</span>
+        <span>retail ${money(v.retail)}</span>
+        <a class="link track" href="#">${state.tracked[it.id] ? "Tracked ✓" : "Track"}</a>
+        <a class="link comps" href="#">eBay $</a>
+      </div>
+    </div>`).join("");
+  root.querySelectorAll(".pitem").forEach((row) => {
+    const it = items.find((x) => String(x.id) === row.dataset.id);
+    row.querySelector(".track").addEventListener("click", async (ev) => {
+      ev.preventDefault(); await send({ type: "track", item: it }); await refresh(); ev.target.textContent = "Tracked ✓";
+    });
+    row.querySelector(".comps").addEventListener("click", (ev) => { ev.preventDefault(); openComps(it.title); });
+  });
+}
+
+$("#scanAllBtn").addEventListener("click", async () => {
+  if (!activeTab) { alert("Open the rlspear auction in this tab first."); return; }
+  const status = $("#scanStatus");
+  status.textContent = "Scanning… this can take ~10s.";
+  $("#scanAllBtn").disabled = true;
+  const res = await tabSend(activeTab.id, { type: "scanAll" });
+  $("#scanAllBtn").disabled = false;
+  if (!res || !res.ok) {
+    status.textContent = res && res.error === "open-auction-list-first"
+      ? "Open the auction's lot list first (so it knows which auction), then scan."
+      : "Scan failed — try again on the auction page.";
+    return;
+  }
+  status.textContent = `Scanned ${res.items.length} lots across ${res.pages} page(s).`;
+  await send({ type: "saveCatalog", items: res.items, pages: res.pages });
+  renderValueResults(res.items);
+});
+
+async function loadCachedCatalog() {
+  const cat = await send({ type: "getCatalog" });
+  if (cat && cat.items && cat.items.length) {
+    $("#scanStatus").textContent = `Cached: ${cat.items.length} lots (scan again to refresh).`;
+    renderValueResults(cat.items);
+  }
+}
+
 $("#refreshBtn").addEventListener("click", async () => { await refresh(); await loadPage(); });
 $("#pageToggle").addEventListener("click", () => $("#pageBody").classList.toggle("hidden"));
+$("#valueToggle").addEventListener("click", () => { $("#valueBody").classList.toggle("hidden"); loadCachedCatalog(); });
 $("#settingsToggle").addEventListener("click", () => $("#settingsBody").classList.toggle("hidden"));
+$("#premiumPct").addEventListener("change", () => {
+  state.settings.premiumPct = parseFloat($("#premiumPct").value) || 0;
+  send({ type: "saveSettings", settings: state.settings });
+});
 ["outbidAlerts", "endingSoonAlerts"].forEach((k) =>
   $("#" + k).addEventListener("change", () => { state.settings[k] = $("#" + k).checked; send({ type: "saveSettings", settings: state.settings }); }));
 $("#endingSoonLeadMin").addEventListener("change", () => {

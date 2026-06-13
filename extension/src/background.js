@@ -14,6 +14,7 @@ const DEFAULT_SETTINGS = {
   outbidAlerts: true,
   endingSoonAlerts: true,
   endingSoonLeadMin: 10, // notify when a tracked lot is within N minutes of close
+  premiumPct: 13, // rlspear buyer's premium, used in the value engine
   selectors: {}
 };
 
@@ -58,6 +59,7 @@ async function onPageItems(payload) {
 
     const prevStatus = t.lastStatus;
     t.title = item.title || t.title;
+    t.value = item.value && item.value.retail ? item.value : t.value;
     t.currentBid = item.currentBid != null ? item.currentBid : t.currentBid;
     t.myMaxBid = item.myMaxBid != null ? item.myMaxBid : t.myMaxBid;
     t.lastStatus = item.status || t.lastStatus;
@@ -125,7 +127,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
           { id: it.id, addedAt: Date.now(), log: [] },
           tracked[it.id] || {},
           {
-            title: it.title, url: it.url, index: it.index,
+            title: it.title, url: it.url, index: it.index, value: it.value,
             currentBid: it.currentBid, myMaxBid: it.myMaxBid,
             targetMax: msg.targetMax != null ? msg.targetMax : (tracked[it.id] && tracked[it.id].targetMax) || null,
             lastStatus: it.status,
@@ -153,6 +155,13 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       case "saveSettings":
         await setSettings(msg.settings);
         sendResponse({ ok: true });
+        break;
+      case "saveCatalog":
+        await chrome.storage.local.set({ catalog: { items: msg.items, at: Date.now(), pages: msg.pages } });
+        sendResponse({ ok: true });
+        break;
+      case "getCatalog":
+        sendResponse((await chrome.storage.local.get(["catalog"])).catalog || null);
         break;
       default:
         sendResponse({ ok: false });

@@ -3,7 +3,7 @@
   "name": "RL Spear Bid Assistant",
   "version": "0.1.0",
   "description": "Watch lots on bid.rlspear.com, track whether you're winning, and auto-bid (snipe / proxy-defend) up to a max you set.",
-  "permissions": ["storage", "alarms", "notifications", "tabs", "scripting"],
+  "permissions": ["storage", "unlimitedStorage", "alarms", "notifications", "tabs"],
   "host_permissions": [
     "*://bid.rlspear.com/*",
     "*://*.rlspear.com/*"

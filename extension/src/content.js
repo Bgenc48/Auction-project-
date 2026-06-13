@@ -95,9 +95,55 @@
     });
   }
 
+  // ---- sweep the whole auction via the site's own GetAuctionItems endpoint --
+  async function scanAllPages(maxPages) {
+    maxPages = maxPages || 25;
+    let base = null;
+    try { base = JSON.parse(localStorage.getItem("AuctionItemData") || "null"); } catch (_) {}
+    if (!base || !base.aucId) return { ok: false, error: "open-auction-list-first" };
+
+    const all = [];
+    const seen = new Set();
+    let pages = 0;
+    for (let p = 1; p <= maxPages; p++) {
+      const params = Object.assign({}, base, { pageNumber: String(p), oldPageNumber: "", _: String(Date.now()) });
+      let html;
+      try {
+        const res = await fetch("/Public/Auction/GetAuctionItems?" + new URLSearchParams(params).toString(), {
+          credentials: "include",
+          headers: { "X-Requested-With": "XMLHttpRequest" }
+        });
+        html = await res.text();
+      } catch (e) { break; }
+      if (!html || html.trim() === "true") break; // session/redirect signal
+      const doc = new DOMParser().parseFromString(html, "text/html");
+      const items = S.scanItems(doc);
+      if (!items.length) break;
+      let added = 0;
+      for (const it of items) { if (!seen.has(it.id)) { seen.add(it.id); all.push(it); added++; } }
+      pages = p;
+      if (added === 0) break; // looping the same page → done
+      await new Promise((r) => setTimeout(r, 250)); // be polite to the server
+    }
+    return { ok: true, items: all, pages };
+  }
+
+  // ---- keep the session alive during long monitoring ------------------------
+  function keepAlive() {
+    fetch("/Public/Login/KeepSessionAlive", {
+      credentials: "include",
+      headers: { "X-Requested-With": "XMLHttpRequest" }
+    }).catch(() => {});
+  }
+  setInterval(keepAlive, 4 * 60 * 1000);
+
   chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     if (msg.type === "readItemsNow") {
       sendResponse({ items: S.scanItems(), url: location.href, auctionId: S.auctionIdFromPage() });
+      return true;
+    }
+    if (msg.type === "scanAll") {
+      scanAllPages(msg.maxPages).then(sendResponse);
       return true;
     }
     if (msg.type === "prefillMax") {
