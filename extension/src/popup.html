@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="popup.css" />
+  <title>RL Spear Bid Assistant</title>
+</head>
+<body>
+  <header>
+    <div class="brand">
+      <span class="dot"></span>
+      <strong>RL Spear Bid Assistant</strong>
+    </div>
+    <div id="dryBadge" class="badge warn" title="Toggle in settings below">DRY RUN</div>
+  </header>
+
+  <section id="current" class="card">
+    <div class="card-title">This page</div>
+    <div id="currentBody" class="muted">Open an rlspear lot page to add it.</div>
+    <div id="currentActions" class="row hidden">
+      <input id="maxBid" type="number" min="0" step="1" placeholder="Your max $" />
+      <select id="mode">
+        <option value="snipe">Snipe (last seconds)</option>
+        <option value="defend">Auto-defend (proxy)</option>
+        <option value="off">Track only</option>
+      </select>
+      <button id="addBtn" class="primary">Watch lot</button>
+    </div>
+    <div id="currentExtra" class="row hidden">
+      <label class="lead">Bid at T-<input id="lead" type="number" min="1" max="120" value="6" /> s</label>
+      <button id="compsBtn" class="ghost">Check eBay sold $</button>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="card-title row-between">
+      <span>Watchlist</span>
+      <button id="refreshBtn" class="tiny ghost">Refresh</button>
+    </div>
+    <div id="list"></div>
+  </section>
+
+  <section class="card collapsible">
+    <div class="card-title row-between" id="settingsToggle">
+      <span>Settings &amp; calibration</span><span class="chev">▾</span>
+    </div>
+    <div id="settingsBody" class="hidden">
+      <label class="switch">
+        <input type="checkbox" id="dryRun" />
+        <span>Dry run (don't place real bids — just log what it would do)</span>
+      </label>
+      <div class="field">
+        <label>Default bid increment ($, 0 = use the site's required amount)</label>
+        <input id="increment" type="number" min="0" step="1" value="0" />
+      </div>
+      <div class="calibrate">
+        <div class="muted small">Calibrate by clicking elements on the lot page. Only needed if auto-detect misses something.</div>
+        <div class="cali-grid">
+          <button data-field="title" class="cali">Title</button>
+          <button data-field="currentPrice" class="cali">Current price</button>
+          <button data-field="timeLeft" class="cali">Time left</button>
+          <button data-field="bidButton" class="cali">Bid button</button>
+          <button data-field="bidInput" class="cali">Bid amount box</button>
+          <button data-field="status" class="cali">Win/outbid area</button>
+        </div>
+        <button id="testBtn" class="ghost">Test bid on this page (respects dry run)</button>
+        <button id="clearCali" class="tiny ghost">Clear calibration for this site</button>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <span class="small muted">Auto-bidding may violate the auction site's Terms. Your account, your call.</span>
+  </footer>
+
+  <script src="selectors.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>
