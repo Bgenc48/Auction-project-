@@ -111,63 +111,62 @@ async function checkEndingSoon() {
   if (changed) await setTracked(tracked);
 }
 
-chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
-  (async () => {
-    switch (msg.type) {
-      case "pageItems":
-        sendResponse(await onPageItems(msg));
-        break;
-      case "getState":
-        sendResponse(await getState());
-        break;
-      case "track": {
-        const { tracked } = await getState();
-        const it = msg.item;
-        tracked[it.id] = Object.assign(
-          { id: it.id, addedAt: Date.now(), log: [] },
-          tracked[it.id] || {},
-          {
-            title: it.title, url: it.url, index: it.index, value: it.value,
-            currentBid: it.currentBid, myMaxBid: it.myMaxBid,
-            targetMax: msg.targetMax != null ? msg.targetMax : (tracked[it.id] && tracked[it.id].targetMax) || null,
-            lastStatus: it.status,
-            endEpoch: liveEndEpoch(it),
-            endNotified: false
-          }
-        );
-        await setTracked(tracked);
-        sendResponse({ ok: true });
-        break;
-      }
-      case "untrack": {
-        const { tracked } = await getState();
-        delete tracked[msg.id];
-        await setTracked(tracked);
-        sendResponse({ ok: true });
-        break;
-      }
-      case "setTarget": {
-        const { tracked } = await getState();
-        if (tracked[msg.id]) { tracked[msg.id].targetMax = msg.targetMax; await setTracked(tracked); }
-        sendResponse({ ok: true });
-        break;
-      }
-      case "saveSettings":
-        await setSettings(msg.settings);
-        sendResponse({ ok: true });
-        break;
-      case "saveCatalog":
-        await chrome.storage.local.set({ catalog: { items: msg.items, at: Date.now(), pages: msg.pages } });
-        sendResponse({ ok: true });
-        break;
-      case "getCatalog":
-        sendResponse((await chrome.storage.local.get(["catalog"])).catalog || null);
-        break;
-      default:
-        sendResponse({ ok: false });
+async function handleMessage(msg) {
+  switch (msg.type) {
+    case "pageItems":
+      return await onPageItems(msg);
+    case "getState":
+      return await getState();
+    case "track": {
+      const { tracked } = await getState();
+      const it = msg.item;
+      tracked[it.id] = Object.assign(
+        { id: it.id, addedAt: Date.now(), log: [] },
+        tracked[it.id] || {},
+        {
+          title: it.title, url: it.url, index: it.index, value: it.value,
+          currentBid: it.currentBid, myMaxBid: it.myMaxBid,
+          targetMax: msg.targetMax != null ? msg.targetMax : (tracked[it.id] && tracked[it.id].targetMax) || null,
+          lastStatus: it.status,
+          endEpoch: liveEndEpoch(it),
+          endNotified: false
+        }
+      );
+      await setTracked(tracked);
+      return { ok: true };
     }
-  })();
-  return true;
+    case "untrack": {
+      const { tracked } = await getState();
+      delete tracked[msg.id];
+      await setTracked(tracked);
+      return { ok: true };
+    }
+    case "setTarget": {
+      const { tracked } = await getState();
+      if (tracked[msg.id]) { tracked[msg.id].targetMax = msg.targetMax; await setTracked(tracked); }
+      return { ok: true };
+    }
+    case "saveSettings":
+      await setSettings(msg.settings);
+      return { ok: true };
+    case "saveCatalog":
+      await chrome.storage.local.set({ catalog: { items: msg.items, at: Date.now(), pages: msg.pages } });
+      return { ok: true };
+    case "getCatalog":
+      return (await chrome.storage.local.get(["catalog"])).catalog || null;
+    default:
+      return { ok: false };
+  }
+}
+
+// Serialize all handling so frequent pageItems updates can't clobber a
+// concurrent track / setTarget (read-modify-write race on stored state).
+let opChain = Promise.resolve();
+chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  opChain = opChain
+    .then(() => handleMessage(msg))
+    .then((res) => sendResponse(res), (err) => sendResponse({ ok: false, error: String(err) }));
+  return true; // keep the channel open for the async sendResponse
 });
 
 chrome.alarms.create("endingSoon", { periodInMinutes: 1 });

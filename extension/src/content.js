@@ -39,12 +39,14 @@
   }
 
   function startObserving() {
-    // Debounced rescan whenever the DOM changes (covers PubNub-driven updates).
+    // Rescan when the item list re-renders (Maxanet swaps an item's markup when
+    // a bid lands). We intentionally do NOT watch characterData, because the
+    // 1-second countdown timers would otherwise fire this constantly.
     observer = new MutationObserver(() => {
       clearTimeout(scanTimer);
-      scanTimer = setTimeout(() => report("mutation"), 400);
+      scanTimer = setTimeout(() => report("mutation"), 600);
     });
-    observer.observe(document.body, { childList: true, subtree: true, characterData: true });
+    observer.observe(document.body, { childList: true, subtree: true });
     // Safety net: a slow heartbeat in case a mutation is missed.
     setInterval(() => report("poll"), 5000);
     report("force");
@@ -106,7 +108,11 @@
     const seen = new Set();
     let pages = 0;
     for (let p = 1; p <= maxPages; p++) {
-      const params = Object.assign({}, base, { pageNumber: String(p), oldPageNumber: "", _: String(Date.now()) });
+      const merged = Object.assign({}, base, { pageNumber: String(p), oldPageNumber: "", _: String(Date.now()) });
+      // Match jQuery's serialization: null/undefined are sent as empty strings,
+      // not the literal "null"/"undefined" that URLSearchParams would produce.
+      const params = {};
+      for (const k of Object.keys(merged)) params[k] = merged[k] == null ? "" : merged[k];
       let html;
       try {
         const res = await fetch("/Public/Auction/GetAuctionItems?" + new URLSearchParams(params).toString(), {

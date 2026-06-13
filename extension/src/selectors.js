@@ -200,7 +200,10 @@
 
   function bestUrlForCard(card) {
     const link = card && card.querySelector('a[href*="AuctionItemDetail"], a[href*="ItemDetail"], a[href*="AuctionItems"]');
-    if (link && link.href) return link.href;
+    const raw = link && link.getAttribute("href");
+    if (raw) {
+      try { return new URL(raw, location.href).href; } catch (_) {}
+    }
     return location.href;
   }
 
