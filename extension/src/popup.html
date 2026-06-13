@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="popup.css" />
+  <title>RL Spear Bid Assistant</title>
+</head>
+<body>
+  <header>
+    <div class="brand"><span class="dot"></span><strong>RL Spear Bid Assistant</strong></div>
+    <button id="refreshBtn" class="tiny ghost">↻</button>
+  </header>
+
+  <div class="note small">
+    Tip: on this auction, the winner is whoever sets the highest <b>Max Bid</b> — not whoever bids last
+    (bids in the final 4 min reset the clock). Track your lots here and get pinged the second you're outbid.
+  </div>
+
+  <section class="card">
+    <div class="card-title row-between"><span>Tracked lots</span><span id="trackedCount" class="muted small"></span></div>
+    <div id="tracked"></div>
+  </section>
+
+  <section class="card collapsible">
+    <div class="card-title row-between" id="valueToggle"><span>💰 Best-value finder</span><span class="chev">▾</span></div>
+    <div id="valueBody" class="hidden">
+      <div class="muted small">Sweeps every page of the open auction and ranks lots by discount off retail (all-in, incl. buyer's premium). Lots must list a "Retail $…" in the title.</div>
+      <div class="row">
+        <button id="scanAllBtn" class="primary">Scan whole auction</button>
+        <span id="scanStatus" class="muted small"></span>
+      </div>
+      <div id="valueResults"></div>
+    </div>
+  </section>
+
+  <section class="card collapsible">
+    <div class="card-title row-between" id="pageToggle"><span>Add lots from this page</span><span class="chev">▾</span></div>
+    <div id="pageBody" class="hidden">
+      <div id="pageItems" class="muted small">Open the auction in a tab, then reopen this.</div>
+    </div>
+  </section>
+
+  <section class="card collapsible">
+    <div class="card-title row-between" id="settingsToggle"><span>Alerts &amp; settings</span><span class="chev">▾</span></div>
+    <div id="settingsBody" class="hidden">
+      <label class="switch"><input type="checkbox" id="outbidAlerts" /><span>Alert me the moment I'm outbid</span></label>
+      <label class="switch"><input type="checkbox" id="endingSoonAlerts" /><span>Alert me when a tracked lot is closing soon</span></label>
+      <div class="field">
+        <label>"Closing soon" means within this many minutes</label>
+        <input id="endingSoonLeadMin" type="number" min="1" max="240" value="10" />
+      </div>
+      <div class="field">
+        <label>Buyer's premium % (used in value math — rlspear is 13%)</label>
+        <input id="premiumPct" type="number" min="0" max="50" value="13" />
+      </div>
+      <div class="muted small">Alerts are desktop notifications — keep Chrome running and a rlspear tab open so they fire.</div>
+    </div>
+  </section>
+
+  <footer><span class="small muted">Read-only helper for your own account. It never bids for you — you stay in control of every Max Bid.</span></footer>
+
+  <script src="selectors.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>
