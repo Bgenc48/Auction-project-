@@ -1,111 +1,99 @@
 # RL Spear Bid Assistant
 
-A Chrome extension that helps you bid smarter on **bid.rlspear.com**:
+A Chrome extension for bidding on **bid.rlspear.com** (a **Maxanet** auction site).
+It helps you win the way this platform actually rewards — by managing your
+**Max Bids** and reacting fast — instead of chasing last-second snipes that the
+site is built to defeat.
 
-- 📋 **Watchlist + live tracking** — see current price, time left, and whether
-  you're the high bidder, all in one popup.
-- 🎯 **Snipe** — automatically place your bid in the final seconds (you set how
-  many) up to a max you choose, so you stop getting outbid at the last moment.
-- 🛡️ **Auto-defend (proxy)** — for "soft-close" auctions that extend when bids
-  land late, instantly re-bid (up to your max) the moment you're outbid.
-- 💰 **eBay sold-comps helper** — one click opens completed/sold eBay listings
-  for the lot title so you can decide what it's actually worth.
-- 🧪 **Dry run by default** — it will not place a single real bid until you
-  confirm it's aiming at the right buttons and turn dry run off.
+## Why not "snipe the last second"?
 
----
+This auction uses **Dynamic Closing**: *any* bid placed in the last 4 minutes
+pushes the closing time out another 4 minutes. So a last-second bid can't steal
+a lot — it just restarts the clock. The site also has a built-in **Max Bid**
+(proxy) robot: you enter the most you'd pay, and it bids the minimum needed on
+your behalf, instantly, even while you sleep.
 
-## ⚠️ Read this first (honest limitations)
+**On this platform, the highest Max Bid wins — not the latest click.** This
+extension is built around that reality.
 
-1. **Your computer + Chrome must be on and awake when a lot closes.** This is a
-   browser tool, not a cloud robot. It opens/refreshes the lot tab ~2.5 minutes
-   before close and fires the bid in the final seconds — but only if the browser
-   is running. Keep it set as a backup, watch the desktop notifications.
-2. **Auto-bidding very likely violates the auction site's Terms of Service.**
-   Most auction platforms prohibit automated bidding. This is your own account
-   and your decision; the realistic worst case is account suspension. The tool
-   uses *your* logged-in session and never stores your password.
-3. **No tool can truly "know" what an estate/liquidation lot is worth.** That's
-   why valuation is *manual*: you set the max, and the eBay comps button gives
-   you real sold data to set it well. There's no magic number.
-4. **Soft-close auctions defeat true sniping by design.** If rlspear extends the
-   clock whenever a late bid lands, use **Auto-defend** mode instead of Snipe.
+## What it does
 
----
+- 📋 **Multi-lot tracker** — one dashboard for every lot you care about across a
+  1,500+ item auction: current bid, your max, time left, winning/outbid.
+- ⚠️ **Instant outbid alerts** — a desktop notification the moment a tracked lot
+  flips to "outbid," so you can decide whether to raise your max in time.
+- ⏰ **Closing-soon alerts** — a heads-up when a tracked lot is within N minutes
+  of closing.
+- 🎯 **Target Max + "Put on page"** — record the most you'd pay for each lot, and
+  one click pre-fills the site's Max Bid box with it (you review and click Bid
+  yourself — the extension never submits a bid).
+- 💰 **eBay sold-comps** — one click opens completed/sold listings for the lot
+  title so you set your max with real resale data.
 
-## Install (load unpacked)
+It is **read-only** toward the auction: it watches the page and fills a field on
+request, but **you place every bid**. Nothing bids automatically.
 
-1. Open Chrome → `chrome://extensions`.
-2. Turn on **Developer mode** (top-right).
-3. Click **Load unpacked** and select the `extension/` folder from this repo.
-4. Pin the extension (puzzle-piece icon → pin "RL Spear Bid Assistant").
+## Install (Windows / Chrome)
 
-> Works in any Chromium browser (Chrome, Edge, Brave).
+1. Download this branch as a ZIP (green **`< > Code`** → **Download ZIP**) and
+   **Extract All**.
+2. Go to `chrome://extensions`, turn on **Developer mode** (top-right).
+3. **Load unpacked** → select the **`extension`** folder (the one with
+   `manifest.json`).
+4. Pin it via the 🧩 puzzle icon.
 
-## First-time setup (2 minutes)
+## Use it
 
-1. Log in to **bid.rlspear.com** as usual and open any single **lot** page.
-2. Click the extension icon. The popup shows what it read from the page
-   (title, current price, time left, win/outbid status).
-3. If anything shows "—" or looks wrong, open **Settings & calibration** and
-   click the field button (e.g. *Bid button*), then click that element on the
-   page. Repeat for anything that's missing. This is only needed once per site.
-4. Set your **max $**, pick a **mode** (Snipe / Auto-defend / Track only), set
-   the snipe lead seconds, and click **Watch lot**.
-5. **Test it safely:** with **Dry run ON**, click *Test bid on this page*. Check
-   the popup/Options log — it will say *"[DRY RUN] Would bid $X… Button found:
-   true"*. If it found the button and the amount, you're calibrated.
-6. When you're confident, open **Settings** and turn **Dry run OFF** to let it
-   place real bids.
+1. Log into **bid.rlspear.com** and open the auction (the grid/list of lots, or a
+   single lot's detail page).
+2. Click the extension → expand **"Add lots from this page"** → click **Track**
+   on the lots you want. (Tip: use the site's search/filter to find specific
+   lots first.)
+3. In **Tracked lots**, set a **Target $** (your true max) for each. Click
+   **eBay $** to sanity-check value.
+4. Click **Put on page** to drop your Target into the site's Max Bid box, then
+   **review and hit Bid yourself** on the site.
+5. Keep Chrome running with a rlspear tab open. If anyone outbids you, you'll get
+   a desktop alert — raise your max if it's still worth it.
 
-## How sniping works
+## How the live tracking works
 
-- For each **Snipe** lot, the background worker sets an alarm ~2.5 min before
-  close and opens/refreshes that lot's tab.
-- The content script then reads the **live on-page countdown** (not your PC
-  clock, to avoid drift) and, at `T-<lead> seconds`, places the next required
-  bid — but only if you're not already winning and the next bid is `≤ your max`.
-- If the next required bid would exceed your max, it **stops** and logs it. It
-  never bids past your number.
-
-## Modes
-
-| Mode | When to use | Behavior |
-|------|-------------|----------|
-| **Snipe** | Hard-close auctions (fixed end time) | Waits, bids once in the final seconds up to your max. |
-| **Auto-defend** | Soft-close / "popcorn" auctions that extend | Re-bids up to your max as soon as it sees you outbid. |
-| **Track only** | Just watching | No bids; live price/status tracking + notifications. |
+The content script reads each lot from Maxanet's markup — the per-item
+`#AuctionItemId_*` / `#MaxBidAmount_*` fields, the `.remain-time` countdown
+(which carries the exact end time **and** the server's clock, so time-left is
+accurate), and the win/outbid styling (`.public-winning-button-style` /
+`.public-outbid-button-style`). A `MutationObserver` catches the live re-render
+the site does whenever a bid lands, so outbid alerts are near-instant while the
+tab is open.
 
 ## Files
 
 ```
 extension/
-  manifest.json         MV3 manifest
+  manifest.json
   src/
-    selectors.js        Reads title/price/time/status; auto-detect + calibration
-    content.js          Per-page reader, end-game timer, bid execution, picker
-    background.js        Watchlist + settings storage, alarms, notifications
-    popup.html/.js/.css  Dashboard UI
-    options.html/.js     Activity log
-  icons/                Toolbar icons
+    selectors.js   Reads Maxanet lots off the page (read-only)
+    content.js     Scans + watches for live changes; pre-fills Max Bid on request
+    background.js  Tracked-lot store, outbid + closing-soon alerts
+    popup.html/.js/.css  Dashboard
+    options.html/.js     Per-lot activity log
+  icons/
 ```
 
 ## Privacy
 
-Everything stays on your machine (`chrome.storage.local`). No servers, no
-accounts, no password storage. The only outbound navigation it triggers is
-opening eBay (comps) or rlspear lot tabs that you chose to watch.
+Everything stays local (`chrome.storage.local`). No servers, no accounts, no
+password storage. The only tabs it opens are ones you ask for (a lot page, or
+eBay comps).
 
-## Troubleshooting
+## Limitations (honest)
 
-- **"Bid button not found"** → run Calibrate and click the actual bid button.
-- **Snipe didn't fire** → the browser was closed/asleep, or the tab wasn't
-  allowed to open. Keep Chrome running; check `chrome://extensions` for errors.
-- **It bid the wrong amount** → set a fixed **bid increment** in Settings, or
-  calibrate the *Bid amount box* so it reads the site's required next bid.
-- **Bid needs a confirmation popup** → it tries to auto-click Confirm/Yes/OK;
-  if the site uses a custom dialog, calibrate isn't enough — open an issue.
+- Alerts need **Chrome open with a rlspear tab** — they fire from the live page,
+  not a cloud server.
+- It can't tell you what a lot is "worth"; the comps button helps you decide.
+- If a lot's bid box uses different markup in some view and "Put on page" can't
+  find it, open that lot's **detail page** and try again.
 
 ---
 
-*This is a personal-use assistant for your own rlspear account. Bid responsibly.*
+*Personal-use helper for your own rlspear account. You place every bid.*
