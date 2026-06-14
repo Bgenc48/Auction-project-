@@ -1,0 +1,27 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main, master]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # No dependencies to install (zero-dep, no build) — go straight to checks.
+      - name: Validate manifest.json is valid JSON
+        run: python3 -c "import json; json.load(open('extension/manifest.json'))"
+
+      - name: Syntax-check extension sources
+        run: for f in extension/src/*.js; do node --check "$f"; done
+
+      - name: Run tests
+        run: npm test
