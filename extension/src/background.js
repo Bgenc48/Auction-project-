@@ -63,7 +63,15 @@ async function onPageItems(payload) {
     t.currentBid = item.currentBid != null ? item.currentBid : t.currentBid;
     t.myMaxBid = item.myMaxBid != null ? item.myMaxBid : t.myMaxBid;
     t.lastStatus = item.status || t.lastStatus;
-    t.endEpoch = liveEndEpoch(item) || t.endEpoch;
+    const newEnd = liveEndEpoch(item);
+    if (newEnd != null) {
+      // Dynamic Closing pushes the close out by ~4 min on any late bid. If the
+      // end time jumped back outside the "ending soon" window, re-arm the alert
+      // so the user is warned again as the *extended* close approaches.
+      const leadMs = (settings.endingSoonLeadMin || 0) * 60000;
+      if (t.endNotified && newEnd - Date.now() > leadMs) t.endNotified = false;
+      t.endEpoch = newEnd;
+    }
     t.url = item.url || t.url;
     t.index = item.index || t.index;
     t.lastSeenAt = Date.now();
