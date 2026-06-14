@@ -34,8 +34,11 @@ extension/
     options.html/.js      Per-lot activity log
   icons/                 16/48/128 px PNGs (generated)
 test/
-  selectors.test.js      Zero-dependency unit tests for the value engine
-package.json             Wires up `npm test` (no deps, no build)
+  selectors.test.js      Value-engine unit tests (parseMoney/parseTitleValue/valuation)
+  scan-items.test.js     scanItems / card-reader tests over a tiny DOM shim
+  background.test.js     liveEndEpoch server-clock skew tests
+  support/               Zero-dependency DOM shim + vm loaders for the tests
+package.json             Wires up `npm test` (node --test, no deps, no build)
 README.md                User-facing install + usage guide
 CLAUDE.md                This file
 ```
