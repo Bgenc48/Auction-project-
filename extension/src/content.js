@@ -31,8 +31,10 @@
       reason,
       at: Date.now()
     };
-    // Only message when something actually changed (keeps it cheap).
-    const sig = JSON.stringify(items.map((i) => [i.id, i.currentBid, i.status, i.myMaxBid]));
+    // Only message when something actually changed (keeps it cheap). Include
+    // endMs so a Dynamic-Closing time extension still propagates to the
+    // background even if bid/status happen to look unchanged in this snapshot.
+    const sig = JSON.stringify(items.map((i) => [i.id, i.currentBid, i.status, i.myMaxBid, i.endMs]));
     if (sig === lastSig && reason !== "force") return;
     lastSig = sig;
     chrome.runtime.sendMessage(payload, () => void chrome.runtime.lastError);
@@ -99,7 +101,9 @@
 
   // ---- sweep the whole auction via the site's own GetAuctionItems endpoint --
   async function scanAllPages(maxPages) {
-    maxPages = maxPages || 25;
+    // Default high enough to cover a full 1,500+ item auction; the loop below
+    // stops early as soon as a page returns no new lots, so this is just a cap.
+    maxPages = maxPages || 60;
     let base = null;
     try { base = JSON.parse(localStorage.getItem("AuctionItemData") || "null"); } catch (_) {}
     if (!base || !base.aucId) return { ok: false, error: "open-auction-list-first" };

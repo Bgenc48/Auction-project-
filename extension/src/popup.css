@@ -31,6 +31,7 @@ button.ghost { background: transparent; }
 .pill.lose { color: var(--lose); border-color: var(--lose); }
 .pill.mode { color: var(--muted); }
 .pill.cap { color: var(--warn); border-color: var(--warn); }
+.tl.urgent { color: var(--warn); font-weight: 700; }
 .tgt { color: var(--muted); display: inline-flex; align-items: center; gap: 4px; }
 .tgt input { width: 72px; }
 a.link { color: var(--accent); text-decoration: none; }

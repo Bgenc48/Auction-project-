@@ -33,6 +33,9 @@ extension/
     popup.html/.js/.css   Dashboard UI
     options.html/.js      Per-lot activity log
   icons/                 16/48/128 px PNGs (generated)
+test/
+  selectors.test.js      Zero-dependency unit tests for the value engine
+package.json             Wires up `npm test` (no deps, no build)
 README.md                User-facing install + usage guide
 CLAUDE.md                This file
 ```
@@ -108,11 +111,13 @@ non-live auction.
 
 ## Validate changes
 
-No test suite. After edits, at minimum:
+The value-engine helpers in `selectors.js` have unit tests; everything else is
+verified by hand. After edits, at minimum:
 
 ```sh
 python3 -c "import json; json.load(open('extension/manifest.json'))"   # manifest valid
 for f in extension/src/*.js; do node --check "$f"; done                 # JS parses
+npm test                                                                # value engine
 ```
 
 Then load unpacked in Chrome (`chrome://extensions` → Developer mode → Load

@@ -67,7 +67,7 @@ function renderTracked() {
       <div class="meta">
         <span>now ${money(e.currentBid)}</span>
         <span>max ${money(e.myMaxBid)}</span>
-        <span>${timeLeft(e.endEpoch)}</span>
+        <span class="tl" data-end="${e.endEpoch || ""}">${timeLeft(e.endEpoch)}</span>
         ${statusPill(e.lastStatus)}
         ${valueBadge(e.currentBid, e.value)}
         ${overMax ? `<span class="pill cap">past your target</span>` : ""}
@@ -100,6 +100,20 @@ function renderTracked() {
       if (!res || !res.ok) alert("Couldn't find that lot's Max Bid box on the current tab. Open the lot's page (or detail page) and try again.\n\n(" + (res && res.error) + ")");
     });
   });
+}
+
+// Tick the tracked-lot countdowns once a second (the popup is short-lived, so
+// the interval dies with it). Flags lots inside the final 5 min as urgent.
+let ticker = null;
+function startTicker() {
+  if (ticker) clearInterval(ticker);
+  ticker = setInterval(() => {
+    document.querySelectorAll(".tl[data-end]").forEach((el) => {
+      const ep = parseInt(el.dataset.end, 10) || null;
+      el.textContent = timeLeft(ep);
+      el.classList.toggle("urgent", !!ep && ep - Date.now() > 0 && ep - Date.now() <= 5 * 60000);
+    });
+  }, 1000);
 }
 
 function openComps(title) {
@@ -213,4 +227,4 @@ $("#endingSoonLeadMin").addEventListener("change", () => {
   send({ type: "saveSettings", settings: state.settings });
 });
 
-(async function init() { await refresh(); await loadPage(); })();
+(async function init() { await refresh(); await loadPage(); startTicker(); })();

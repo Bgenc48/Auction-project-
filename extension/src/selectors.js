@@ -104,8 +104,13 @@
       const v = parseMoney(bidInput.value) || parseMoney(bidInput.placeholder);
       if (v != null) return v;
     }
-    // Else the first $ amount in the card.
-    const any = Array.from(card.querySelectorAll("span,div,p,td,strong,b")).find((el) => /\$/.test(text(el)));
+    // Else the first $ amount in the card — but skip the title, which usually
+    // embeds a "Retail $…" that would otherwise be misread as the current bid.
+    const titleEl = card.querySelector(".auction-item-title");
+    const any = Array.from(card.querySelectorAll("span,div,p,td,strong,b")).find((el) => {
+      if (titleEl && (el === titleEl || titleEl.contains(el))) return false;
+      return /\$/.test(text(el));
+    });
     return any ? parseMoney(text(any)) : null;
   }
 
