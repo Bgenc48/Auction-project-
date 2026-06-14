@@ -140,6 +140,14 @@
       const maxField = index && root.getElementById ? root.getElementById("MaxBidAmount_" + index) : null;
       const t = timeFromCard(card);
       const title = titleFromCard(card);
+      // Retail can live in the title OR elsewhere in the card body — try both.
+      const value = parseTitleValue(title);
+      if (!value.retail && card) {
+        const fromBody = parseTitleValue(text(card));
+        if (fromBody.retail) value.retail = fromBody.retail;
+        if (!value.condition) value.condition = fromBody.condition;
+        if (!value.qty) value.qty = fromBody.qty;
+      }
       out.push({
         id: String(itemId),
         index: index || null,
@@ -149,7 +157,7 @@
         status: statusFromCard(card),
         endMs: t.endMs,
         serverNowMs: t.serverNowMs,
-        value: parseTitleValue(title),
+        value,
         capturedAt: Date.now(),
         url: bestUrlForCard(card)
       });

@@ -173,21 +173,35 @@ function renderValueResults(items) {
 }
 
 $("#scanAllBtn").addEventListener("click", async () => {
-  if (!activeTab) { alert("Open the rlspear auction in this tab first."); return; }
+  if (!activeTab) { alert("Open the rlspear auction in this tab first, then click the extension."); return; }
   const status = $("#scanStatus");
   status.textContent = "Scanning… this can take ~10s.";
   $("#scanAllBtn").disabled = true;
   const res = await tabSend(activeTab.id, { type: "scanAll" });
   $("#scanAllBtn").disabled = false;
-  if (!res || !res.ok) {
+
+  let items = (res && res.ok && res.items) || [];
+  let note = "";
+
+  // If the full sweep returned nothing, rank whatever lots are on the page now.
+  if (!items.length) {
+    const live = await tabSend(activeTab.id, { type: "readItemsNow" });
+    items = (live && live.items) || [];
+    if (items.length) note = `Couldn't sweep all pages — ranked the ${items.length} lots on THIS page instead. Page through the site and re-scan for more. `;
+  }
+
+  if (!items.length) {
     status.textContent = res && res.error === "open-auction-list-first"
-      ? "Open the auction's lot list first (so it knows which auction), then scan."
-      : "Scan failed — try again on the auction page.";
+      ? "Open the auction's lot list (the page with all the lots) first, then scan."
+      : "Found no lots to read on this page. Make sure you're on the auction's lot list and it's finished loading.";
+    $("#valueResults").innerHTML = "";
     return;
   }
-  status.textContent = `Scanned ${res.items.length} lots across ${res.pages} page(s).`;
-  await send({ type: "saveCatalog", items: res.items, pages: res.pages });
-  renderValueResults(res.items);
+
+  const withRetail = items.filter((i) => i.value && i.value.retail).length;
+  status.textContent = `${note}Read ${items.length} lot(s)${res && res.pages ? " across " + res.pages + " page(s)" : ""}; ${withRetail} have a retail price to rank.`;
+  await send({ type: "saveCatalog", items, pages: (res && res.pages) || 1 });
+  renderValueResults(items);
 });
 
 async function loadCachedCatalog() {
