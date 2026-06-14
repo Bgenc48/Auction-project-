@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "RL Spear Bid Assistant",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Track lots on bid.rlspear.com: see wins/outbids, rank lots by real discount off retail, and pre-fill the site's Max Bid box on request. Read-only — you place every bid.",
   "permissions": ["storage", "unlimitedStorage", "alarms", "notifications", "tabs"],
   "host_permissions": [

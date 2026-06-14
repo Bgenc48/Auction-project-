@@ -9,7 +9,7 @@
 <body>
   <header>
     <div class="brand"><span class="dot"></span><strong>RL Spear Bid Assistant</strong></div>
-    <button id="refreshBtn" class="tiny ghost">↻</button>
+    <button id="refreshBtn" class="tiny ghost" aria-label="Refresh tracked lots and this page">↻</button>
   </header>
 
   <div class="note small">
@@ -23,38 +23,50 @@
   </section>
 
   <section class="card collapsible">
-    <div class="card-title row-between" id="valueToggle"><span>💰 Best-value finder</span><span class="chev">▾</span></div>
+    <div class="card-title row-between" id="valueToggle" role="button" tabindex="0" aria-expanded="false" aria-controls="valueBody"><span>💰 Best-value finder</span><span class="chev">▾</span></div>
     <div id="valueBody" class="hidden">
       <div class="muted small">Sweeps every page of the open auction and ranks lots by discount off retail (all-in, incl. buyer's premium). Lots must list a "Retail $…" in the title.</div>
       <div class="row">
         <button id="scanAllBtn" class="primary">Scan whole auction</button>
-        <span id="scanStatus" class="muted small"></span>
+        <span id="scanStatus" class="muted small" role="status" aria-live="polite"></span>
       </div>
       <div id="valueResults"></div>
     </div>
   </section>
 
   <section class="card collapsible">
-    <div class="card-title row-between" id="pageToggle"><span>Add lots from this page</span><span class="chev">▾</span></div>
+    <div class="card-title row-between" id="pageToggle" role="button" tabindex="0" aria-expanded="false" aria-controls="pageBody"><span>Add lots from this page</span><span class="chev">▾</span></div>
     <div id="pageBody" class="hidden">
       <div id="pageItems" class="muted small">Open the auction in a tab, then reopen this.</div>
     </div>
   </section>
 
   <section class="card collapsible">
-    <div class="card-title row-between" id="settingsToggle"><span>Alerts &amp; settings</span><span class="chev">▾</span></div>
+    <div class="card-title row-between" id="settingsToggle" role="button" tabindex="0" aria-expanded="false" aria-controls="settingsBody"><span>Alerts &amp; settings</span><span class="chev">▾</span></div>
     <div id="settingsBody" class="hidden">
       <label class="switch"><input type="checkbox" id="outbidAlerts" /><span>Alert me the moment I'm outbid</span></label>
       <label class="switch"><input type="checkbox" id="endingSoonAlerts" /><span>Alert me when a tracked lot is closing soon</span></label>
+      <label class="switch"><input type="checkbox" id="resultAlerts" /><span>Alert me when a tracked lot closes (won / lost)</span></label>
       <div class="field">
-        <label>"Closing soon" means within this many minutes</label>
+        <label for="endingSoonLeadMin">"Closing soon" means within this many minutes</label>
         <input id="endingSoonLeadMin" type="number" min="1" max="240" value="10" />
       </div>
       <div class="field">
-        <label>Buyer's premium % (used in value math — rlspear is 13%)</label>
+        <label for="premiumPct">Buyer's premium % (used in value math — rlspear is 13%)</label>
         <input id="premiumPct" type="number" min="0" max="50" value="13" />
       </div>
+      <div class="field">
+        <label for="maxBudget">Per-lot budget ceiling — all-in $ (0 = off). Warns before "Put on page".</label>
+        <input id="maxBudget" type="number" min="0" value="0" />
+      </div>
+      <label class="switch"><input type="checkbox" id="pubnubRealtime" /><span>Faster updates via the site's live feed (advanced — reload the auction tab after changing)</span></label>
       <div class="muted small">Alerts are desktop notifications — keep Chrome running and a rlspear tab open so they fire.</div>
+
+      <div class="field">
+        <label>Debug: capture a lot card's HTML (for tuning the page reader)</label>
+        <button id="captureBtn" class="tiny">Capture a lot card</button>
+        <textarea id="captureOut" class="hidden" readonly rows="6" aria-label="Captured lot card HTML"></textarea>
+      </div>
     </div>
   </section>
 

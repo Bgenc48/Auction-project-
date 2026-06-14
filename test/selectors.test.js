@@ -50,3 +50,15 @@ test("valuation returns null without a usable retail", () => {
   assert.strictEqual(S.valuation(10, 0, 13), null);
   assert.strictEqual(S.valuation(10, null, 13), null);
 });
+
+test("allIn adds the buyer's premium and rounds to cents", () => {
+  assert.strictEqual(S.allIn(100, 13), 113);
+  assert.strictEqual(S.allIn(49.99, 13), 56.49); // 56.4887 → 56.49
+  assert.strictEqual(S.allIn(100, 0), 100);
+});
+
+test("allIn is 0 for missing or non-positive amounts", () => {
+  assert.strictEqual(S.allIn(null, 13), 0);
+  assert.strictEqual(S.allIn(0, 13), 0);
+  assert.strictEqual(S.allIn("nope", 13), 0);
+});

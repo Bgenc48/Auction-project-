@@ -24,9 +24,15 @@ extension is built around that reality.
   flips to "outbid," so you can decide whether to raise your max in time.
 - ⏰ **Closing-soon alerts** — a heads-up when a tracked lot is within N minutes
   of closing.
+- 🏁 **Result alerts** — when a tracked lot closes, it's marked **won / lost /
+  ended** with a final notification, and resolved lots sink to the bottom of the
+  dashboard.
 - 🎯 **Target Max + "Put on page"** — record the most you'd pay for each lot, and
   one click pre-fills the site's Max Bid box with it (you review and click Bid
   yourself — the extension never submits a bid).
+- 🧮 **Budget guard** — set an optional all-in ceiling; the dashboard flags lots
+  whose target would blow it, and "Put on page" shows your true all-in cost
+  (incl. premium) in a confirmation before filling anything.
 - 💰 **Best-value finder** — sweeps every page of the auction and ranks lots by
   **real discount off retail**: it reads the "Retail $…" embedded in each lot's
   title and computes your **all-in cost including the 13% buyer's premium**, so

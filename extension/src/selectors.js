@@ -195,12 +195,21 @@
   function valuation(currentBid, retail, premiumPct) {
     if (retail == null || retail <= 0) return null;
     const bid = currentBid != null ? currentBid : 0;
-    const allIn = bid * (1 + (premiumPct || 0) / 100);
+    const allInCost = bid * (1 + (premiumPct || 0) / 100);
     return {
       retail,
-      allIn: Math.round(allIn * 100) / 100,
-      discountPct: Math.round((1 - allIn / retail) * 100)
+      allIn: Math.round(allInCost * 100) / 100,
+      discountPct: Math.round((1 - allInCost / retail) * 100)
     };
+  }
+
+  // All-in cost of a bid/target once the buyer's premium is added. Used by the
+  // budget-ceiling guard so the user sees what a Max Bid actually commits them
+  // to before it ever reaches the site's Bid button.
+  function allIn(amount, premiumPct) {
+    const a = Number(amount);
+    if (!Number.isFinite(a) || a <= 0) return 0;
+    return Math.round(a * (1 + (premiumPct || 0) / 100) * 100) / 100;
   }
 
   function bestUrlForCard(card) {
@@ -243,6 +252,7 @@
     scanItems,
     parseTitleValue,
     valuation,
+    allIn,
     auctionIdFromPage,
     parseMoney,
     buildSelector,
