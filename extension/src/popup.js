@@ -26,6 +26,13 @@ function statusPill(s) {
   return `<span class="pill mode">no bid</span>`;
 }
 function premium() { return (state.settings && state.settings.premiumPct) || 0; }
+function budget() { return (state.settings && Number(state.settings.maxBudget)) || 0; }
+function resultPill(outcome) {
+  if (outcome === "won") return `<span class="pill win">Won 🏆</span>`;
+  if (outcome === "lost") return `<span class="pill lose">Lost</span>`;
+  if (outcome === "ended") return `<span class="pill mode">Ended</span>`;
+  return "";
+}
 // Returns a value badge HTML for an item that carries a parsed `value` (retail).
 function valueBadge(currentBid, value) {
   const retail = value && value.retail;
@@ -45,14 +52,22 @@ async function refresh() {
   const s = state.settings || {};
   $("#outbidAlerts").checked = !!s.outbidAlerts;
   $("#endingSoonAlerts").checked = !!s.endingSoonAlerts;
+  $("#resultAlerts").checked = !!s.resultAlerts;
+  $("#pubnubRealtime").checked = !!s.pubnubRealtime;
   $("#endingSoonLeadMin").value = s.endingSoonLeadMin || 10;
   $("#premiumPct").value = s.premiumPct != null ? s.premiumPct : 13;
+  $("#maxBudget").value = s.maxBudget != null ? s.maxBudget : 0;
   renderTracked();
 }
 
 function renderTracked() {
   const t = state.tracked || {};
-  const keys = Object.keys(t).sort((a, b) => (t[a].endEpoch || Infinity) - (t[b].endEpoch || Infinity));
+  // Active lots first (soonest close first), resolved/closed lots sink to the end.
+  const keys = Object.keys(t).sort((a, b) => {
+    const ra = t[a].resolved ? 1 : 0, rb = t[b].resolved ? 1 : 0;
+    if (ra !== rb) return ra - rb;
+    return (t[a].endEpoch || Infinity) - (t[b].endEpoch || Infinity);
+  });
   $("#trackedCount").textContent = keys.length ? `${keys.length} lot${keys.length > 1 ? "s" : ""}` : "";
   const root = $("#tracked");
   if (!keys.length) {
@@ -62,22 +77,26 @@ function renderTracked() {
   root.innerHTML = keys.map((id) => {
     const e = t[id];
     const overMax = e.currentBid != null && e.targetMax && e.currentBid >= e.targetMax;
-    return `<div class="lot ${e.lastStatus === "outbid" ? "alert" : ""}" data-id="${esc(id)}">
+    const allInTarget = e.targetMax ? window.RLSpearSelectors.allIn(e.targetMax, premium()) : 0;
+    const overBudget = budget() > 0 && allInTarget > budget();
+    const cls = e.resolved ? "done" : (e.lastStatus === "outbid" ? "alert" : "");
+    return `<div class="lot ${cls}" data-id="${esc(id)}">
       <div class="t" title="${esc(e.title)}">${esc(e.title || "(lot " + id + ")")}</div>
       <div class="meta">
         <span>now ${money(e.currentBid)}</span>
         <span>max ${money(e.myMaxBid)}</span>
-        <span>${timeLeft(e.endEpoch)}</span>
-        ${statusPill(e.lastStatus)}
+        <span class="tl" data-end="${e.resolved ? "" : (e.endEpoch || "")}">${e.resolved ? "closed" : timeLeft(e.endEpoch)}</span>
+        ${e.resolved ? resultPill(e.outcome) : statusPill(e.lastStatus)}
         ${valueBadge(e.currentBid, e.value)}
         ${overMax ? `<span class="pill cap">past your target</span>` : ""}
+        ${overBudget ? `<span class="pill cap" title="Target all-in ~${money(allInTarget)} exceeds your ${money(budget())} budget">over budget</span>` : ""}
       </div>
       <div class="meta">
-        <label class="tgt">Target&nbsp;$<input type="number" min="0" class="target" value="${e.targetMax ?? ""}" placeholder="—" /></label>
-        <a class="link setmax" href="#" title="Fill the site's Max Bid box with your target (you still click Bid)">Put on page</a>
-        <a class="link comps" href="#">eBay $</a>
-        <a class="link open" href="#">Open</a>
-        <a class="link remove" href="#">✕</a>
+        <label class="tgt">Target&nbsp;$<input type="number" min="0" class="target" value="${e.targetMax ?? ""}" placeholder="—" aria-label="Target max bid for ${esc(e.title || ("lot " + id))}" /></label>
+        <a class="link setmax" href="#" role="button" aria-label="Fill the site's Max Bid box with your target" title="Fill the site's Max Bid box with your target (you still click Bid)">Put on page</a>
+        <a class="link comps" href="#" role="button" aria-label="Search sold prices on eBay">eBay $</a>
+        <a class="link open" href="#" role="button" aria-label="Open the lot page in a new tab">Open</a>
+        <a class="link remove" href="#" role="button" aria-label="Stop tracking this lot">✕</a>
       </div>
     </div>`;
   }).join("");
@@ -96,10 +115,31 @@ function renderTracked() {
       const amount = parseFloat(row.querySelector(".target").value);
       if (!amount) { alert("Set a Target $ first."); return; }
       if (!activeTab) { alert("Open the lot's page in a tab first, then try again."); return; }
+      // Confirmation gate: show the real all-in commitment (and warn if it
+      // blows the budget ceiling) before touching the site's Max Bid box.
+      const allInCost = window.RLSpearSelectors.allIn(amount, premium());
+      const b = budget();
+      let prompt = `Fill the Max Bid box with $${amount}?\nAll-in ≈ ${money(allInCost)} (incl. ${premium()}% premium).\n\nYou still review and click Bid yourself.`;
+      if (b > 0 && allInCost > b) prompt = `⚠️ Over budget: all-in ≈ ${money(allInCost)} exceeds your ${money(b)} ceiling.\n\n` + prompt;
+      if (!confirm(prompt)) return;
       const res = await tabSend(activeTab.id, { type: "prefillMax", itemId: id, amount });
       if (!res || !res.ok) alert("Couldn't find that lot's Max Bid box on the current tab. Open the lot's page (or detail page) and try again.\n\n(" + (res && res.error) + ")");
     });
   });
+}
+
+// Tick the tracked-lot countdowns once a second (the popup is short-lived, so
+// the interval dies with it). Flags lots inside the final 5 min as urgent.
+let ticker = null;
+function startTicker() {
+  if (ticker) clearInterval(ticker);
+  ticker = setInterval(() => {
+    document.querySelectorAll(".tl[data-end]").forEach((el) => {
+      const ep = parseInt(el.dataset.end, 10) || null;
+      el.textContent = timeLeft(ep);
+      el.classList.toggle("urgent", !!ep && ep - Date.now() > 0 && ep - Date.now() <= 5 * 60000);
+    });
+  }, 1000);
 }
 
 function openComps(title) {
@@ -213,18 +253,57 @@ async function loadCachedCatalog() {
 }
 
 $("#refreshBtn").addEventListener("click", async () => { await refresh(); await loadPage(); });
-$("#pageToggle").addEventListener("click", () => $("#pageBody").classList.toggle("hidden"));
-$("#valueToggle").addEventListener("click", () => { $("#valueBody").classList.toggle("hidden"); loadCachedCatalog(); });
-$("#settingsToggle").addEventListener("click", () => $("#settingsBody").classList.toggle("hidden"));
+
+// Accessible collapsibles: keep aria-expanded + chevron in sync and respond to
+// Enter/Space, not just mouse clicks.
+function wireToggle(headId, bodyId, onOpen) {
+  const head = $("#" + headId), body = $("#" + bodyId);
+  const apply = () => {
+    const open = !body.classList.contains("hidden");
+    head.setAttribute("aria-expanded", String(open));
+    const chev = head.querySelector(".chev"); if (chev) chev.textContent = open ? "▴" : "▾";
+  };
+  const toggle = () => {
+    body.classList.toggle("hidden");
+    apply();
+    if (!body.classList.contains("hidden") && onOpen) onOpen();
+  };
+  head.addEventListener("click", toggle);
+  head.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(); } });
+  apply();
+}
+wireToggle("valueToggle", "valueBody", loadCachedCatalog);
+wireToggle("pageToggle", "pageBody");
+wireToggle("settingsToggle", "settingsBody");
+
 $("#premiumPct").addEventListener("change", () => {
   state.settings.premiumPct = parseFloat($("#premiumPct").value) || 0;
   send({ type: "saveSettings", settings: state.settings });
+  renderTracked(); // value/budget badges depend on the premium
 });
-["outbidAlerts", "endingSoonAlerts"].forEach((k) =>
+$("#maxBudget").addEventListener("change", () => {
+  state.settings.maxBudget = parseFloat($("#maxBudget").value) || 0;
+  send({ type: "saveSettings", settings: state.settings });
+  renderTracked(); // "over budget" pills depend on the ceiling
+});
+["outbidAlerts", "endingSoonAlerts", "resultAlerts", "pubnubRealtime"].forEach((k) =>
   $("#" + k).addEventListener("change", () => { state.settings[k] = $("#" + k).checked; send({ type: "saveSettings", settings: state.settings }); }));
 $("#endingSoonLeadMin").addEventListener("change", () => {
   state.settings.endingSoonLeadMin = parseInt($("#endingSoonLeadMin").value, 10) || 10;
   send({ type: "saveSettings", settings: state.settings });
 });
 
-(async function init() { await refresh(); await loadPage(); })();
+// Debug: grab a real lot card's HTML so the selectors can be tuned/regression-tested.
+$("#captureBtn").addEventListener("click", async () => {
+  const out = $("#captureOut");
+  out.classList.remove("hidden");
+  if (!activeTab) { out.value = "Open the rlspear auction in this tab first, then capture."; return; }
+  const res = await tabSend(activeTab.id, { type: "captureCard" });
+  if (!res || !res.ok) { out.value = "Capture failed: " + ((res && res.error) || "no response from page"); return; }
+  out.value =
+    "// Parsed snapshot (what the reader extracted):\n" + JSON.stringify(res.snapshot, null, 2) +
+    "\n\n// Raw card HTML (paste this back to tune selectors):\n" + res.html;
+  out.focus(); out.select();
+});
+
+(async function init() { await refresh(); await loadPage(); startTicker(); })();

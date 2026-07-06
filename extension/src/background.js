@@ -13,8 +13,11 @@
 const DEFAULT_SETTINGS = {
   outbidAlerts: true,
   endingSoonAlerts: true,
+  resultAlerts: true, // notify won/lost/ended when a tracked lot closes
   endingSoonLeadMin: 10, // notify when a tracked lot is within N minutes of close
   premiumPct: 13, // rlspear buyer's premium, used in the value engine
+  maxBudget: 0, // per-lot all-in ceiling for the budget guard (0 = off)
+  pubnubRealtime: false, // opt-in: subscribe to Maxanet's PubNub for faster alerts
   selectors: {}
 };
 
@@ -63,7 +66,18 @@ async function onPageItems(payload) {
     t.currentBid = item.currentBid != null ? item.currentBid : t.currentBid;
     t.myMaxBid = item.myMaxBid != null ? item.myMaxBid : t.myMaxBid;
     t.lastStatus = item.status || t.lastStatus;
-    t.endEpoch = liveEndEpoch(item) || t.endEpoch;
+    const newEnd = liveEndEpoch(item);
+    if (newEnd != null) {
+      // Dynamic Closing pushes the close out by ~4 min on any late bid. If the
+      // end time jumped back outside the "ending soon" window, re-arm the alert
+      // so the user is warned again as the *extended* close approaches.
+      const leadMs = (settings.endingSoonLeadMin || 0) * 60000;
+      if (t.endNotified && newEnd - Date.now() > leadMs) t.endNotified = false;
+      // If a resolved lot is live again (Dynamic Closing pushed the close out
+      // after we'd marked it ended), reopen it so it resolves on the real close.
+      if (t.resolved && newEnd - Date.now() > 0) { t.resolved = false; t.outcome = null; }
+      t.endEpoch = newEnd;
+    }
     t.url = item.url || t.url;
     t.index = item.index || t.index;
     t.lastSeenAt = Date.now();
@@ -111,6 +125,44 @@ async function checkEndingSoon() {
   if (changed) await setTracked(tracked);
 }
 
+// Map the last-seen status of a now-closed lot to a final outcome.
+function closedOutcome(status) {
+  if (status === "winning") return "won";
+  if (status === "outbid") return "lost";
+  return "ended"; // we never had the high bid (or never saw a bid state)
+}
+
+// Resolve tracked lots whose close time has passed: stamp a final outcome and
+// fire a one-time result notification. Runs on the same 1-minute alarm.
+async function resolveClosedLots() {
+  const { tracked, settings } = await getState();
+  const now = Date.now();
+  let changed = false;
+  for (const id of Object.keys(tracked)) {
+    const t = tracked[id];
+    if (!t.endEpoch || t.resolved) continue;
+    if (now < t.endEpoch) continue; // not closed yet (endEpoch tracks extensions)
+    const outcome = closedOutcome(t.lastStatus);
+    t.resolved = true;
+    t.outcome = outcome;
+    t.resolvedAt = now;
+    if (settings.resultAlerts) {
+      if (outcome === "won")
+        notify("🏆 You won: " + (t.title || "a lot"),
+          `Final $${t.currentBid ?? "?"}. Check your account to arrange payment/pickup.`, "result-" + id);
+      else if (outcome === "lost")
+        notify("❌ Lost: " + (t.title || "a lot"),
+          `Closed at $${t.currentBid ?? "?"} — above your max $${t.myMaxBid ?? "—"}.`, "result-" + id);
+      else
+        notify("Lot ended: " + (t.title || "a lot"),
+          `Closed at $${t.currentBid ?? "?"}. No winning bid from you.`, "result-" + id);
+    }
+    log(t, `Closed — ${outcome} at $${t.currentBid ?? "—"}`);
+    changed = true;
+  }
+  if (changed) await setTracked(tracked);
+}
+
 async function handleMessage(msg) {
   switch (msg.type) {
     case "pageItems":
@@ -129,7 +181,9 @@ async function handleMessage(msg) {
           targetMax: msg.targetMax != null ? msg.targetMax : (tracked[it.id] && tracked[it.id].targetMax) || null,
           lastStatus: it.status,
           endEpoch: liveEndEpoch(it),
-          endNotified: false
+          endNotified: false,
+          resolved: false,
+          outcome: null
         }
       );
       await setTracked(tracked);
@@ -148,6 +202,11 @@ async function handleMessage(msg) {
     }
     case "saveSettings":
       await setSettings(msg.settings);
+      // Let open rlspear tabs react live (e.g. toggle the PubNub subscription).
+      try {
+        const tabs = await chrome.tabs.query({ url: ["*://bid.rlspear.com/*", "*://*.rlspear.com/*"] });
+        for (const tab of tabs) chrome.tabs.sendMessage(tab.id, { type: "settingsChanged", settings: msg.settings }, () => void chrome.runtime.lastError);
+      } catch (_) {}
       return { ok: true };
     case "saveCatalog":
       await chrome.storage.local.set({ catalog: { items: msg.items, at: Date.now(), pages: msg.pages } });
@@ -170,5 +229,5 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 });
 
 chrome.alarms.create("endingSoon", { periodInMinutes: 1 });
-chrome.alarms.onAlarm.addListener((a) => { if (a.name === "endingSoon") checkEndingSoon(); });
+chrome.alarms.onAlarm.addListener((a) => { if (a.name === "endingSoon") { checkEndingSoon(); resolveClosedLots(); } });
 chrome.runtime.onInstalled.addListener(async () => { const { settings } = await getState(); await setSettings(settings); });

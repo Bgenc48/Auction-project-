@@ -33,6 +33,12 @@ extension/
     popup.html/.js/.css   Dashboard UI
     options.html/.js      Per-lot activity log
   icons/                 16/48/128 px PNGs (generated)
+test/
+  selectors.test.js      Value-engine unit tests (parseMoney/parseTitleValue/valuation)
+  scan-items.test.js     scanItems / card-reader tests over a tiny DOM shim
+  background.test.js     liveEndEpoch server-clock skew tests
+  support/               Zero-dependency DOM shim + vm loaders for the tests
+package.json             Wires up `npm test` (node --test, no deps, no build)
 README.md                User-facing install + usage guide
 CLAUDE.md                This file
 ```
@@ -108,11 +114,13 @@ non-live auction.
 
 ## Validate changes
 
-No test suite. After edits, at minimum:
+The value-engine helpers in `selectors.js` have unit tests; everything else is
+verified by hand. After edits, at minimum:
 
 ```sh
 python3 -c "import json; json.load(open('extension/manifest.json'))"   # manifest valid
 for f in extension/src/*.js; do node --check "$f"; done                 # JS parses
+npm test                                                                # value engine
 ```
 
 Then load unpacked in Chrome (`chrome://extensions` → Developer mode → Load
@@ -125,9 +133,21 @@ unpacked → select `extension/`) and smoke-test on the live auction:
 
 - Current-bid parsing and the `GetAuctionItems` scan are written to the
   confirmed markup but were not verifiable against the live authenticated site
-  from the dev environment — confirm via the smoke test; if a lot card differs,
-  capture one card's `outerHTML` and tune `selectors.js`.
-- Real-time updates currently come from the DOM (MutationObserver). Maxanet also
-  pushes via **PubNub** (sub key in page source, channels `bid_refresh<invId>`,
-  `auction_halt<aucId>`, `bid_groupitem_refresh<aucId>`); a future enhancement
-  could subscribe directly for lower latency.
+  from the dev environment — confirm via the smoke test. To tune a differing
+  card, use **Alerts & settings → Debug → "Capture a lot card"** in the popup:
+  it returns the card's `outerHTML` plus the parsed snapshot so a mismatch can
+  be turned into a fixture in `test/scan-items.test.js`.
+- Real-time updates come from the DOM (MutationObserver) by default. An **opt-in
+  PubNub** path (Alerts & settings → "Faster updates via the site's live feed")
+  long-polls Maxanet's subscribe REST endpoint — sub key auto-detected from the
+  page (`sub-c-…`), channels `bid_refresh<invId>`, `auction_halt<aucId>`,
+  `bid_groupitem_refresh<aucId>` — and triggers an immediate rescan on a push.
+  Off by default and unverified against the live site; confirm before relying on
+  it. No SDK, no keys stored.
+- Closed lots resolve on the 1-minute alarm (`resolveClosedLots`): once a
+  tracked lot's `endEpoch` passes it's stamped won/lost/ended and a one-time
+  result notification fires. A Dynamic-Closing extension reopens a prematurely
+  resolved lot (handled in `onPageItems`).
+- A per-lot **budget ceiling** (`settings.maxBudget`, all-in $) drives an "over
+  budget" pill and a confirmation gate before "Put on page" pre-fills a Max Bid.
+  Bidding stays manual; this is a guardrail, not automation.

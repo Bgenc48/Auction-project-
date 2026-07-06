@@ -104,8 +104,13 @@
       const v = parseMoney(bidInput.value) || parseMoney(bidInput.placeholder);
       if (v != null) return v;
     }
-    // Else the first $ amount in the card.
-    const any = Array.from(card.querySelectorAll("span,div,p,td,strong,b")).find((el) => /\$/.test(text(el)));
+    // Else the first $ amount in the card — but skip the title, which usually
+    // embeds a "Retail $…" that would otherwise be misread as the current bid.
+    const titleEl = card.querySelector(".auction-item-title");
+    const any = Array.from(card.querySelectorAll("span,div,p,td,strong,b")).find((el) => {
+      if (titleEl && (el === titleEl || titleEl.contains(el))) return false;
+      return /\$/.test(text(el));
+    });
     return any ? parseMoney(text(any)) : null;
   }
 
@@ -198,12 +203,21 @@
   function valuation(currentBid, retail, premiumPct) {
     if (retail == null || retail <= 0) return null;
     const bid = currentBid != null ? currentBid : 0;
-    const allIn = bid * (1 + (premiumPct || 0) / 100);
+    const allInCost = bid * (1 + (premiumPct || 0) / 100);
     return {
       retail,
-      allIn: Math.round(allIn * 100) / 100,
-      discountPct: Math.round((1 - allIn / retail) * 100)
+      allIn: Math.round(allInCost * 100) / 100,
+      discountPct: Math.round((1 - allInCost / retail) * 100)
     };
+  }
+
+  // All-in cost of a bid/target once the buyer's premium is added. Used by the
+  // budget-ceiling guard so the user sees what a Max Bid actually commits them
+  // to before it ever reaches the site's Bid button.
+  function allIn(amount, premiumPct) {
+    const a = Number(amount);
+    if (!Number.isFinite(a) || a <= 0) return 0;
+    return Math.round(a * (1 + (premiumPct || 0) / 100) * 100) / 100;
   }
 
   function bestUrlForCard(card) {
@@ -246,6 +260,7 @@
     scanItems,
     parseTitleValue,
     valuation,
+    allIn,
     auctionIdFromPage,
     parseMoney,
     buildSelector,
